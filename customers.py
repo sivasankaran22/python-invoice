@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 import sqlite3
+import re  # Import the regular expression module
 
 # Function to create the database table for customers
 def create_customer_table():
@@ -21,8 +22,16 @@ def create_customer_table():
     conn.commit()
     conn.close()
 
-# Function to add a new customer
+# Function to add a new customer with validation
 def add_customer_popup(parent_frame):
+    def validate_email(email):
+        email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+        return re.match(email_regex, email)
+
+    def validate_phone(phone):
+        phone_regex = r'^\d{10}$'  # Basic validation for 10-digit phone number
+        return re.match(phone_regex, phone)
+
     def save_customer():
         company_name = entry_company_name.get()
         company_address = entry_company_address.get()
@@ -32,24 +41,33 @@ def add_customer_popup(parent_frame):
         contact_person_phone = entry_contact_person_phone.get()
         contact_person_email = entry_contact_person_email.get()
 
-        if all([company_name, company_address, company_email, company_phone, 
-                contact_person_name, contact_person_phone, contact_person_email]):
-            conn = sqlite3.connect('invoice.db')
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO customers (
-                    company_name, company_address, company_email, company_phone,
-                    contact_person_name, contact_person_phone, contact_person_email
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (company_name, company_address, company_email, company_phone,
-                  contact_person_name, contact_person_phone, contact_person_email))
-            conn.commit()
-            conn.close()
-            messagebox.showinfo("Success", "Customer added successfully!")
-            load_customers()  # Refresh the customer list
-            popup.destroy()
-        else:
+        if not all([company_name, company_address, company_email, company_phone,
+                    contact_person_name, contact_person_phone, contact_person_email]):
             messagebox.showwarning("Input Error", "All fields are required.")
+            return
+
+        if not validate_email(company_email) or not validate_email(contact_person_email):
+            messagebox.showwarning("Input Error", "Invalid email address.")
+            return
+
+        if not validate_phone(company_phone) or not validate_phone(contact_person_phone):
+            messagebox.showwarning("Input Error", "Invalid phone number.")
+            return
+
+        conn = sqlite3.connect('invoice.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO customers (
+                company_name, company_address, company_email, company_phone,
+                contact_person_name, contact_person_phone, contact_person_email
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (company_name, company_address, company_email, company_phone,
+              contact_person_name, contact_person_phone, contact_person_email))
+        conn.commit()
+        conn.close()
+        messagebox.showinfo("Success", "Customer added successfully!")
+        popup.destroy()
+        load_customers(parent_frame)  # Refresh the customer list
 
     popup = tk.Toplevel()
     popup.title("Add Customer")
@@ -86,7 +104,7 @@ def add_customer_popup(parent_frame):
     tk.Button(popup, text="Save", command=save_customer, font=("Helvetica", 12)).pack(pady=10)
 
 # Function to load customers into the table
-def load_customers():
+def load_customers(list_frame):
     # Clear previous widgets in the list frame
     for widget in list_frame.winfo_children():
         widget.destroy()
@@ -104,7 +122,7 @@ def load_customers():
         return
 
     # Define headers for the customer list
-    headers = ["ID", "Company Name", "Company Email", "Company Phone", "Contact Name", "Contact Phone", "Contact Email", "Actions"]
+    headers = ["Sr. No.", "Company Name", "Company Email", "Company Phone", "Contact Name", "Contact Phone", "Contact Email", "Actions"]
     
     # Display headers at the top of the list
     for col, header in enumerate(headers):
@@ -112,15 +130,28 @@ def load_customers():
 
     # Display each customer's details in the list
     for row, customer in enumerate(customers, start=1):
-        for col, value in enumerate(customer[:7]):  # Only display the first 7 fields
+        # Display the serial number in the first column
+        tk.Label(list_frame, text=row, font=("Helvetica", 12)).grid(row=row, column=0, padx=10, pady=5, sticky="w")
+
+        # Display each customer's details in the corresponding columns (except the serial number)
+        for col, value in enumerate(customer[1:], start=1):  # Skipping the 'id' (customer[0])
             tk.Label(list_frame, text=value, font=("Helvetica", 12)).grid(row=row, column=col, padx=10, pady=5, sticky="w")
 
-        # Add Edit and Delete buttons
-        tk.Button(list_frame, text="Edit", font=("Helvetica", 10), command=lambda c=customer: edit_customer_popup(c)).grid(row=row, column=7, padx=5)
-        tk.Button(list_frame, text="Delete", font=("Helvetica", 10), command=lambda c=customer: delete_customer(c[0])).grid(row=row, column=8, padx=5)
+        # Add Edit and Delete buttons in the last column
+        tk.Button(list_frame, text="Edit", font=("Helvetica", 10), command=lambda c=customer: edit_customer_popup(list_frame, c)).grid(row=row, column=7, padx=5)
+        tk.Button(list_frame, text="Delete", font=("Helvetica", 10), command=lambda c=customer: delete_customer(list_frame, c[0])).grid(row=row, column=8, padx=5)
+
 
 # Function to edit an existing customer
-def edit_customer_popup(customer):
+def edit_customer_popup(parent_frame, customer):
+    def validate_email(email):
+        email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+        return re.match(email_regex, email)
+
+    def validate_phone(phone):
+        phone_regex = r'^\d{10}$'  # Basic validation for 10-digit phone number
+        return re.match(phone_regex, phone)
+
     def save_changes():
         company_name = entry_company_name.get()
         company_address = entry_company_address.get()
@@ -130,24 +161,33 @@ def edit_customer_popup(customer):
         contact_person_phone = entry_contact_person_phone.get()
         contact_person_email = entry_contact_person_email.get()
 
-        if all([company_name, company_address, company_email, company_phone, 
-                contact_person_name, contact_person_phone, contact_person_email]):
-            conn = sqlite3.connect('invoice.db')
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE customers 
-                SET company_name = ?, company_address = ?, company_email = ?, company_phone = ?,
-                    contact_person_name = ?, contact_person_phone = ?, contact_person_email = ?
-                WHERE id = ?
-            ''', (company_name, company_address, company_email, company_phone,
-                  contact_person_name, contact_person_phone, contact_person_email, customer[0]))
-            conn.commit()
-            conn.close()
-            messagebox.showinfo("Success", "Customer updated successfully!")
-            load_customers()  # Refresh the customer list
-            popup.destroy()
-        else:
+        if not all([company_name, company_address, company_email, company_phone,
+                    contact_person_name, contact_person_phone, contact_person_email]):
             messagebox.showwarning("Input Error", "All fields are required.")
+            return
+
+        if not validate_email(company_email) or not validate_email(contact_person_email):
+            messagebox.showwarning("Input Error", "Invalid email address.")
+            return
+
+        if not validate_phone(company_phone) or not validate_phone(contact_person_phone):
+            messagebox.showwarning("Input Error", "Invalid phone number.")
+            return
+
+        conn = sqlite3.connect('invoice.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE customers 
+            SET company_name = ?, company_address = ?, company_email = ?, company_phone = ?,
+                contact_person_name = ?, contact_person_phone = ?, contact_person_email = ?
+            WHERE id = ?
+        ''', (company_name, company_address, company_email, company_phone,
+              contact_person_name, contact_person_phone, contact_person_email, customer[0]))
+        conn.commit()
+        conn.close()
+        messagebox.showinfo("Success", "Customer updated successfully!")
+        popup.destroy()
+        load_customers(parent_frame)  # Refresh the customer list
 
     popup = tk.Toplevel()
     popup.title("Edit Customer")
@@ -190,8 +230,10 @@ def edit_customer_popup(customer):
 
     tk.Button(popup, text="Save", command=save_changes, font=("Helvetica", 12)).pack(pady=10)
 
+
+
 # Function to delete a customer
-def delete_customer(customer_id):
+def delete_customer(parent_frame, customer_id):
     result = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this customer?")
     if result:
         conn = sqlite3.connect('invoice.db')
@@ -200,13 +242,13 @@ def delete_customer(customer_id):
         conn.commit()
         conn.close()
         messagebox.showinfo("Success", "Customer deleted successfully!")
-        load_customers()  # Refresh the customer list
+        load_customers(parent_frame)  # Refresh the customer list
 
 # Main function to manage customers
 def manage_customers(parent_frame):
     create_customer_table()
 
-    # Create a sub-frame for the "Add Customer" button (Separate from the customer list)
+    # Create a sub-frame for the "Add Customer" button
     header_frame = tk.Frame(parent_frame)
     header_frame.pack(fill="x", pady=10)
 
@@ -214,10 +256,9 @@ def manage_customers(parent_frame):
     button_add = tk.Button(header_frame, text="Add New Customer", command=lambda: add_customer_popup(parent_frame), font=("Helvetica", 14))
     button_add.pack(side="left", padx=10)
 
-    # Create a sub-frame for the customer list (Customer list frame will be updated independently)
-    global list_frame
+    # Create a sub-frame for the customer list
     list_frame = tk.Frame(parent_frame)
     list_frame.pack(fill="both", expand=True)
 
     # Load customers into the list
-    load_customers()
+    load_customers(list_frame)
