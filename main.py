@@ -25,18 +25,26 @@ def open_main_app():
         frame_products.pack_forget()
         frame_invoices.pack_forget()
 
+    def clear_frame(frame):
+        """Clear the widgets from the frame before displaying new content."""
+        for widget in frame.winfo_children():
+            widget.destroy()
+
     def show_customers():
         hide_all_frames()
+        clear_frame(frame_customers)  # Clear previous content
         frame_customers.pack(fill="both", expand=True)
         manage_customers(frame_customers)
 
     def show_products():
         hide_all_frames()
+        clear_frame(frame_products)  # Clear previous content
         frame_products.pack(fill="both", expand=True)
         manage_products(frame_products)
 
     def show_invoices():
         hide_all_frames()
+        clear_frame(frame_invoices)  # Clear previous content
         frame_invoices.pack(fill="both", expand=True)
         manage_invoices(frame_invoices)
 
